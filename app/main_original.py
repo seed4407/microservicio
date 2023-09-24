@@ -3,24 +3,7 @@ import logging
 from pymongo import MongoClient
 from bson.objectid import ObjectId
 from fastapi import FastAPI
-from fastapi import BackgroundTasks
 from pydantic import BaseModel
-import requests
-
-def comunicacion_publicidad(background_tasks: BackgroundTasks):
-    try:
-        response = requests.get('http://microservicio_destino:puerto/ruta_del_endpoint')
-        response.raise_for_status()  # Verificar el código de estado HTTP
-        # Procesar la respuesta exitosa
-        data = response.json()
-        print(data)
-    except requests.exceptions.RequestException as e:
-        print(f"Error de conexión: {e}")
-    except requests.exceptions.HTTPError as e:
-        print(f"Error HTTP: {e}")
-    except requests.exceptions.Timeout as e:
-        print(f"Tiempo de espera agotado: {e}")
-
 
 
 app = FastAPI()
@@ -29,10 +12,13 @@ mongodb_client = MongoClient("demo_01_service_01_mongodb", 27017)
 logging.basicConfig(level = logging.DEBUG,
                     format = '%(asctime)s:%(levelname)s:%(name)s:%(message)s')
 
-class publicidad(BaseModel):
-    id: str
+class Player(BaseModel):
+    id: str | None = None
     name: str
-    description: str
+    age: int
+    number: int
+    team_id: str | None = None
+    description: str = ""
 
     def __init__(self, **kargs):
         if "_id" in kargs:
@@ -40,10 +26,9 @@ class publicidad(BaseModel):
         BaseModel.__init__(self, **kargs)
 
 @app.get("/")
-async def root(background_tasks: BackgroundTasks):
-    background_tasks.add_task(comunicacion_publicidad, background_tasks)
+async def root():
     logging.info("👋 Hello world (end-point)!")
-    return {"message": "Tarea periódica iniciada"}
+    return {"Hello": "World"}
 
 
 @app.get("/players")

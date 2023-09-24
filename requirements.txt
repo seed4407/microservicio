@@ -2,3 +2,5 @@ fastapi==0.78
 uvicorn>=0.18.1
 pymongo>=4.1.1
 background-tasks>=0.0.1
+requests>=2.31.0
+pika>=1.3.2
