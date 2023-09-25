@@ -1,0 +1,12 @@
+services:
+  demo_01_service_02:
+    build: .
+    ports:
+      - "5001:80"
+    volumes:
+      - .:/code
+
+networks:
+  default:
+    name: demo_01
+    external: true

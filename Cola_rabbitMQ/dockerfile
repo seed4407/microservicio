@@ -1,0 +1,20 @@
+FROM python:3.10
+
+WORKDIR /code
+
+COPY ./app /code/app
+COPY ./requirements.txt /code/requirements.txt
+
+RUN sudo apt update
+RUN sudo apt install -y curl gnupg debian-keyring debian-archive-keyring apt-transport-https
+RUN sudo gpg --dearmor -o /usr/share/keyrings/erlang-solutions-archive-keyring.gpg
+RUN sudo tee /etc/apt/sources.list.d/erlang-solutions.list
+RUN sudo apt update
+RUN sudo apt install -y rabbitmq-server
+
+
+
+RUN pip install --no-cache-dir --upgrade -r /code/requirements.txt
+
+
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "80", "--reload"]

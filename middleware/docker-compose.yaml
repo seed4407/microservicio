@@ -1,0 +1,12 @@
+services:
+  recepcion:
+    build: .
+    ports:
+      - "5002:80"
+    volumes:
+      - .:/code
+
+networks:
+  default:
+    name: demo_01
+    external: true

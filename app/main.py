@@ -7,7 +7,7 @@ from fastapi import BackgroundTasks
 from pydantic import BaseModel
 import requests
 import time
-importar pika
+import pika
 
 def comunicacion_publicidad(background_tasks, interval):
     while True:
@@ -27,12 +27,13 @@ def comunicacion_publicidad(background_tasks, interval):
             logging.info(f"Error HTTP: {e}")
         except requests.exceptions.Timeout as e:
             logging.info(f"Tiempo de espera agotado: {e}")
-        
-        # conexión = pika.BlockingConnection(pika.ConnectionParameters(host= 'localhost' ))
-        # canal = conexión.canal()    
-        # canal.queue_declare(cola= 'hola' )
-        # canal.basic_publish(exchange= '' , route_key= 'hola' , body= '¡Hola mundo!' )
-        print ( " [x] Enviado '¡Hola mundo!'" )
+
+        connection = pika.BlockingConnection(pika.ConnectionParameters(host='172.18.0.4'))
+        channel = connection.channel()
+        # channel.queue_declare(queue='hello')
+        channel.basic_publish(exchange='', routing_key='hello', body='Hello World!')
+        print(" [x] Sent 'Hello World!'")
+        connection.close()
         time.sleep(interval)
 
 app = FastAPI()
@@ -52,7 +53,7 @@ class publicidad(BaseModel):
         BaseModel.__init__(self, **kargs)
 
 @app.get("/")
-async def root(background_tasks: BackgroundTasks, interval = 5):
+async def root(background_tasks: BackgroundTasks, interval = 1):
     background_tasks.add_task(comunicacion_publicidad, background_tasks, interval)
     logging.info("👋")
     return {"message": "Tarea periódica iniciada"}
