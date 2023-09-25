@@ -53,9 +53,27 @@ class publicidad(BaseModel):
         BaseModel.__init__(self, **kargs)
 
 @app.get("/")
-async def root(background_tasks: BackgroundTasks, interval = 1):
+async def root(background_tasks: BackgroundTasks, interval = 1000000):
     background_tasks.add_task(comunicacion_publicidad, background_tasks, interval)
     logging.info("👋")
     return {"message": "Tarea periódica iniciada"}
 
+@app.post("/anuncio")
+def creacion_anuncio(anuncio: publicidad):
+    inserted_id = mongodb_client.service_01.anuncios.insert_one(
+        anuncio.dict()
+    ).inserted_id
 
+    new_anuncio = publicidad(
+        **mongodb_client.service_01.anuncios.find_one(
+            {"_id": ObjectId(inserted_id)}
+        )
+    )
+
+    logging.info(f"✨ New anuncio created: {new_anuncio}")
+
+    return new_anuncio
+
+@app.get("/anuncio/{anuncio_id}")
+def anuncio_get(anuncio_id: str):
+    return publicidad(**mongodb_client.service_01.anuncios.find_one({"_id": ObjectId(anuncio_id)}))
