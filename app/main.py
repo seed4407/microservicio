@@ -4,6 +4,8 @@ from pymongo import MongoClient
 from bson.objectid import ObjectId
 from fastapi import FastAPI
 from fastapi import BackgroundTasks
+# from fastapi import Body
+from fastapi import HTTPException
 from pydantic import BaseModel
 import requests
 import time
@@ -20,11 +22,13 @@ def comunicacion_publicidad(background_tasks, interval):
             data = response.json()
 
         except requests.exceptions.RequestException as e:
-            logging.info(f"Error de conexión: {e}")
+            raise HTTPException(status_code=503, detail="No se pudo conectar a servidor")
+        
         except requests.exceptions.HTTPError as e:
-            logging.info(f"Error HTTP: {e}")
+            raise HTTPException(status_code=404, detail="No se encontro recurso")
+
         except requests.exceptions.Timeout as e:
-            logging.info(f"Tiempo de espera agotado: {e}")
+            raise HTTPException(status_code=504, detail="Tiempo limite para respuesta alcanzado")
 
         estado = data[0]["estado"]
         if(estado == "conectado"):
@@ -35,7 +39,11 @@ def comunicacion_publicidad(background_tasks, interval):
                 contador_anuncios = int(anuncios_para_enviar["id"]) + 1
             else:
                 contador_anuncios = int(anuncios_para_enviar["id"]) + 1
-            connection = pika.BlockingConnection(pika.ConnectionParameters(host='172.18.0.6'))
+            try: 
+                connection = pika.BlockingConnection(pika.ConnectionParameters(host='172.18.0.6'))
+            except pika.exceptions.AMQPConnectionError as e:
+                raise HTTPException(status_code=503, detail="No se pudo conectar a la cola rabbitMQ")
+
             channel = connection.channel()
             # channel.queue_declare(queue='hello')
             channel.basic_publish(exchange='', routing_key='publicidad', body=anuncios_para_enviar["description"])
@@ -47,8 +55,20 @@ class publicidad(BaseModel):
     name: str
     description: str
 
+    model_config = {
+        "json_schema_extra": {
+            "ejemplo publicidad": [
+                {
+                    "name": "Melt Pizza",
+                    "description": "2x1 en todas las pizzas familiares",
+                }
+            ]
+        }
+    }
+
 class cantidad(BaseModel):
     cantidad: int
+
 
 app = FastAPI()
 mongodb_client = MongoClient("demo_01_service_01_mongodb", 27017)
@@ -67,16 +87,16 @@ if(dato == None):
 else:
     id_anuncios = int(dato["cantidad"])
 
-@app.get("/")
+@app.get("/",response_description="Inicia proceso de envio de anuncios", tags=["Inicio"])
 async def root(background_tasks: BackgroundTasks, interval = 1):
     background_tasks.add_task(comunicacion_publicidad, background_tasks, interval)
     logging.info("👋")
     return {"message": "Tarea periódica iniciada"}
 
-@app.post("/anuncio",response_description="Anuncio creado")
+@app.post("/anuncio",response_description="Creacion anuncio", tags=["anuncio"])
 def creacion_anuncio(anuncio: publicidad):
     """
-    Datos anuncio que se creara de anuncion que se enviaran:
+    Datos anuncio para agregar a base de datos:
 
     - **name**: titulo para identificar a quien pertenece el anuncio
     - **description**: contenido del anuncio
@@ -98,29 +118,35 @@ def creacion_anuncio(anuncio: publicidad):
 
     return new_anuncio
 
-@app.put("/cantidad")
+@app.put("/cantidad",response_description="Actualizacion dato id anuncios a 1", tags=["cantidad"])
 def actualizar_id():
     global id_anuncios
     id_anuncios = 1
     mongodb_client.service_01.cantidades.update_one({},{"$set": {"cantidad":1}})
 
-@app.get("/anuncio/{anuncio_id}")
+@app.get("/anuncio/{anuncio_id}", response_description="Obtencion anuncio con id == anuncio_id", tags=["anuncio"])
 def anuncio_get(anuncio_id: str):
     dato = mongodb_client.service_01.anuncios.find_one({"id": anuncio_id})
     if(dato == None):
-        return None
+        raise HTTPException(status_code=404, detail="No se encontro anuncio")
     else:
         return publicidad(**dato)
 
-@app.get("/anuncio_all")
+@app.get("/anuncio_all",response_description="Obtencion de todos los anuncios", tags=["anuncio"])
 def anuncio_all():
-    return [publicidad(**anuncio) for anuncio in mongodb_client.service_01.anuncios.find()]
+    if(mongodb_client.service_01.anuncios.find_one() == None):
+        raise HTTPException(status_code=404, detail="No se encontro anuncio")
+    else:
+        return [publicidad(**anuncio) for anuncio in mongodb_client.service_01.anuncios.find()]
 
-@app.get("/cantidad_all")
+@app.get("/cantidad_all",response_description="Obtencion de id anuncio siguiente al ultimo agregado", tags=["cantidad"])
 def anuncio_all():
-    return [cantidad(**dato) for dato in mongodb_client.service_01.cantidades.find()]
+    if(mongodb_client.service_01.cantidades.find_one() == None):
+        raise HTTPException(status_code=404, detail="No se encontro ningun valor en cantidad")
+    else:
+        return [cantidad(**dato) for dato in mongodb_client.service_01.cantidades.find()]
 
-@app.delete("/anuncios_eliminar/{anuncio_id}")
+@app.delete("/anuncios_eliminar/{anuncio_id}",response_description="Elimina anuncio con id == anuncio_id", tags=["anuncio"])
 def anuncios_eliminar(anuncio_id: str):
     result = mongodb_client.service_01.anuncios.delete_one(
         {"id": anuncio_id}
