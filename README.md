@@ -14,3 +14,5 @@ Consideraciones:
 - El programa empezara a funcionar al acceder a "http://172.18.0.3/", la ip puede variar. Ademas se conecta a traves de ip a la cola rabbitMQ y al   microservicio usuario y middleware tambien se conecta a traves de ip a cola rabbitMQ, por lo que se puede ver afectado.
 
 - Se dejo "http://172.18.0.3/" para inciar el funcionamiento para asi decidir cuando comienza y poder revisar el resto de funcionalidad, dado que no es una solicitud get, lo mas correcto seria usar @app.on_event("startup") para que inicie cuando el contenedor se active.
+
+Repositorio: https://github.com/seed4407/microservicio.git
