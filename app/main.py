@@ -69,6 +69,16 @@ class publicidad(BaseModel):
 class cantidad(BaseModel):
     cantidad: int
 
+    model_config = {
+        "json_schema_extra": {
+            "ejemplo cantidad": [
+                {
+                    "cantidad": 1,
+                }
+            ]
+        }
+    }
+
 
 app = FastAPI()
 mongodb_client = MongoClient("demo_01_service_01_mongodb", 27017)
@@ -87,73 +97,135 @@ if(dato == None):
 else:
     id_anuncios = int(dato["cantidad"])
 
-@app.get("/",response_description="Inicia proceso de envio de anuncios", tags=["Inicio"])
+# @app.on_event("startup")
+@app.get("/",response_model =  str,response_description="Inicia proceso de envio de anuncios",summary = "Iniciar microservicio", tags=["Inicio"])
 async def root(background_tasks: BackgroundTasks, interval = 1):
     background_tasks.add_task(comunicacion_publicidad, background_tasks, interval)
     logging.info("👋")
     return {"message": "Tarea periódica iniciada"}
 
-@app.post("/anuncio",response_description="Creacion anuncio", tags=["anuncio"])
+@app.post("/anuncio",response_model=str,response_description="Creacion exitosa",summary = "Creacion anuncio", tags=["anuncio"])
 def creacion_anuncio(anuncio: publicidad):
     """
-    Datos anuncio para agregar a base de datos:
+    Agregar anuncio a base de datos, con los siguientes parametros:
 
-    - **name**: titulo para identificar a quien pertenece el anuncio
-    - **description**: contenido del anuncio
+    - **name**: titulo para identificar a quien pertenece el anuncio, string
+    - **description**: contenido del anuncio, string
     """
-    global id_anuncios
-    anuncio.id = str(id_anuncios)
-    id_anuncios = id_anuncios + 1
-    inserted_id = mongodb_client.service_01.anuncios.insert_one(
-        anuncio.dict()
-    ).inserted_id
+    try:
+        global id_anuncios
+        anuncio.id = str(id_anuncios)
+        id_anuncios = id_anuncios + 1
+        inserted_id = mongodb_client.service_01.anuncios.insert_one(
+            anuncio.dict()
+        ).inserted_id
+        return "Ok"
+    except pymongo.errors.ServerSelectionTimeoutError:
+        raise HTTPException(status_code=504, detail="Tiempo limite alcanzado")
+    except pymongo.errors.ConnectionFailure:
+        raise HTTPException(status_code=503, detail="No se pudo concectar a la base de datos")
 
-    new_anuncio = publicidad(
-        **mongodb_client.service_01.anuncios.find_one(
-            {"_id": ObjectId(inserted_id)}
-        )
-    )
-
-    logging.info(f"✨ New anuncio created: {new_anuncio}")
-
-    return new_anuncio
-
-@app.put("/cantidad",response_description="Actualizacion dato id anuncios a 1", tags=["cantidad"])
+@app.put("/cantidad",response_model=str,response_description="Actualizacion exitosa",summary = "Reiniciar id anuncios", tags=["cantidad"])
 def actualizar_id():
-    global id_anuncios
-    id_anuncios = 1
-    mongodb_client.service_01.cantidades.update_one({},{"$set": {"cantidad":1}})
+    """
+    Actualizar valor almacenado en base de datos cantidades a 1
 
-@app.get("/anuncio/{anuncio_id}", response_description="Obtencion anuncio con id == anuncio_id", tags=["anuncio"])
+    **sin parametros de entrada**
+    """
+    try:
+        if(mongodb_client.service_01.cantidades.find_one() == None):
+            raise HTTPException(status_code=404, detail="No se encontro valor para actualizar")
+        else:
+            global id_anuncios
+            id_anuncios = 1
+            mongodb_client.service_01.cantidades.update_one({},{"$set": {"cantidad":1}})
+            return "Ok"
+    except pymongo.errors.ServerSelectionTimeoutError:
+        raise HTTPException(status_code=504, detail="Tiempo limite alcanzado")
+    except pymongo.errors.ConnectionFailure:
+        raise HTTPException(status_code=503, detail="No se pudo concectar a la base de datos")
+
+
+@app.get("/anuncio/{anuncio_id}",response_model=publicidad,response_description="Obtencion exitosa",summary = "Obtencion anuncio", tags=["anuncio"])
 def anuncio_get(anuncio_id: str):
-    dato = mongodb_client.service_01.anuncios.find_one({"id": anuncio_id})
-    if(dato == None):
-        raise HTTPException(status_code=404, detail="No se encontro anuncio")
-    else:
-        return publicidad(**dato)
+    """
+    Obtencion anuncio con id == anuncio_id, recibe el parametro:
+    
+    - **anuncio_id**: id anunico a buscar, str
+    """
+    try:
+        dato = mongodb_client.service_01.anuncios.find_one({"id": anuncio_id})
+        if(dato == None):
+            raise HTTPException(status_code=404, detail="No se encontro anuncio")
+        else:
+            return publicidad(**dato)
+    except pymongo.errors.ServerSelectionTimeoutError:
+        raise HTTPException(status_code=504, detail="Tiempo limite alcanzado")
+    except pymongo.errors.ConnectionFailure:
+        raise HTTPException(status_code=503, detail="No se pudo concectar a la base de datos")
+    
 
-@app.get("/anuncio_all",response_description="Obtencion de todos los anuncios", tags=["anuncio"])
+@app.get("/anuncio_all",response_model=list[publicidad],response_description="Obtencion exitosa",summary = "Obtencion todos los anuncio", tags=["anuncio"])
 def anuncio_all():
-    if(mongodb_client.service_01.anuncios.find_one() == None):
-        raise HTTPException(status_code=404, detail="No se encontro anuncio")
-    else:
-        return [publicidad(**anuncio) for anuncio in mongodb_client.service_01.anuncios.find()]
+    """
+    Obtencion de todos los anuncios
+    
+    **sin parametros de entrada**
+    """
+    try:
+        if(mongodb_client.service_01.anuncios.find_one() == None):
+            raise HTTPException(status_code=404, detail="No se encontro anuncio")
+        else:
+            return [publicidad(**anuncio) for anuncio in mongodb_client.service_01.anuncios.find()]
+    except pymongo.errors.ServerSelectionTimeoutError:
+        raise HTTPException(status_code=504, detail="Tiempo limite alcanzado")
+    except pymongo.errors.ConnectionFailure:
+        raise HTTPException(status_code=503, detail="No se pudo concectar a la base de datos")
 
-@app.get("/cantidad_all",response_description="Obtencion de id anuncio siguiente al ultimo agregado", tags=["cantidad"])
-def anuncio_all():
-    if(mongodb_client.service_01.cantidades.find_one() == None):
-        raise HTTPException(status_code=404, detail="No se encontro ningun valor en cantidad")
-    else:
-        return [cantidad(**dato) for dato in mongodb_client.service_01.cantidades.find()]
 
-@app.delete("/anuncios_eliminar/{anuncio_id}",response_description="Elimina anuncio con id == anuncio_id", tags=["anuncio"])
+@app.get("/cantidad_all",response_model=list[cantidad],response_description="Obtencion exitosa",summary = "Obtencion ultimo id anuncio+1", tags=["cantidad"])
+def cantidad_all():
+    """
+    Obtencion de id anuncio siguiente al ultimo agregado
+    
+    **sin parametros de entrada**
+    """
+    try:
+        if(mongodb_client.service_01.cantidades.find_one() == None):
+            raise HTTPException(status_code=404, detail="No se encontro ningun valor en cantidad")
+        else:
+            return [cantidad(**dato) for dato in mongodb_client.service_01.cantidades.find()]
+    except pymongo.errors.ServerSelectionTimeoutError:
+        raise HTTPException(status_code=504, detail="Tiempo limite alcanzado")
+    except pymongo.errors.ConnectionFailure:
+        raise HTTPException(status_code=503, detail="No se pudo concectar a la base de datos")
+
+@app.delete("/anuncios_eliminar/{anuncio_id}",response_model=str,response_description="Eliminacion exitosa",summary = "Eliminar anuncio", tags=["anuncio"])
 def anuncios_eliminar(anuncio_id: str):
-    result = mongodb_client.service_01.anuncios.delete_one(
-        {"id": anuncio_id}
-    )
-    return result.deleted_count
+    """
+    Eliminacion anuncio con id == anuncio_id, recibe el parametro:
+    
+    - **anuncio_id**: id anuncio a eliminar, string
+    """
+    try:
+        if(mongodb_client.service_01.anuncios.find_one({"id": anuncio_id}) == None):
+            raise HTTPException(status_code=404, detail="No se encontro ningun anuncio con dicho id")
+        else:
+            result = mongodb_client.service_01.anuncios.delete_one(
+                {"id": anuncio_id}
+            )
+            return "Ok"
+    except pymongo.errors.ServerSelectionTimeoutError:
+        raise HTTPException(status_code=504, detail="Tiempo limite alcanzado")
+    except pymongo.errors.ConnectionFailure:
+        raise HTTPException(status_code=503, detail="No se pudo concectar a la base de datos")
 
 @app.on_event("shutdown")
 async def fin_proceso():
-    global id_anuncios
-    mongodb_client.service_01.cantidades.update_one({},{"$set": {"cantidad":id_anuncios}})
+    try:
+        global id_anuncios
+        mongodb_client.service_01.cantidades.update_one({},{"$set": {"cantidad":id_anuncios}})
+    except pymongo.errors.ServerSelectionTimeoutError:
+        raise HTTPException(status_code=504, detail="Tiempo limite alcanzado")
+    except pymongo.errors.ConnectionFailure:
+        raise HTTPException(status_code=503, detail="No se pudo concectar a la base de datos")
