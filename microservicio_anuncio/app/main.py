@@ -1,6 +1,7 @@
 import logging
 
 from pymongo import MongoClient
+import pymongo
 from bson.objectid import ObjectId
 from fastapi import FastAPI
 from fastapi import BackgroundTasks
@@ -13,6 +14,10 @@ import pika
 import signal
 
 def comunicacion_publicidad(background_tasks, interval):
+    """
+    La logica de esta funcion es hacer solicitid sincrona a microservicio usuario para verificar si hay alguien concectado, para asi enviar anuncios 
+    a la cola rabbitMQ a todas las colas con routing_key='publicidad'. Los envio de publicidad son deforma secuencial segun id.
+    """
     contador_anuncios = 0
     while True:
         try:
@@ -21,13 +26,13 @@ def comunicacion_publicidad(background_tasks, interval):
             # Procesar la respuesta exitosa
             data = response.json()
 
-        except requests.exceptions.RequestException as e:
+        except requests.exceptions.RequestException:
             raise HTTPException(status_code=503, detail="No se pudo conectar a servidor")
         
-        except requests.exceptions.HTTPError as e:
+        except requests.exceptions.HTTPError:
             raise HTTPException(status_code=404, detail="No se encontro recurso")
 
-        except requests.exceptions.Timeout as e:
+        except requests.exceptions.Timeout:
             raise HTTPException(status_code=504, detail="Tiempo limite para respuesta alcanzado")
 
         estado = data[0]["estado"]
@@ -98,8 +103,8 @@ else:
     id_anuncios = int(dato["cantidad"])
 
 # @app.on_event("startup")
-@app.get("/",response_model =  str,response_description="Inicia proceso de envio de anuncios",summary = "Iniciar microservicio", tags=["Inicio"])
-async def root(background_tasks: BackgroundTasks, interval = 1):
+@app.get("/",response_description="Inicia proceso de envio de anuncios",summary = "Iniciar microservicio", tags=["Inicio"])
+async def root(background_tasks: BackgroundTasks, interval = 60):
     background_tasks.add_task(comunicacion_publicidad, background_tasks, interval)
     logging.info("👋")
     return {"message": "Tarea periódica iniciada"}

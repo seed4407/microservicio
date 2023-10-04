@@ -47,7 +47,7 @@ class Team(BaseModel):
 
 @app.get("/")
 async def root():
-    data = [{"id": "1","usuario": "seed4407","tiempo_conectado": 30},{"id": "2","usuario":   "gato_1234","tiempo_conectado": 30},{"id": "3","usuario": "gato_123","tiempo_conectado": 30}]
+    data = [{"estado":"conectado"}]
     return data
 
 

@@ -10,3 +10,4 @@ networks:
   default:
     name: demo_01
     external: true
+    
